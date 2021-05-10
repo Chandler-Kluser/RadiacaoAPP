@@ -1,6 +1,6 @@
 from numpy.linalg import solve as ls_solve
 from copy import copy
-from numpy import array,power,zeros
+from numpy import array,zeros
 from scipy.constants import sigma
 
 class radsurf:
