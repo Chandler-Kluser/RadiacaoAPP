@@ -1,0 +1,10 @@
+__pycache__
+/cálculos separados
+/resources RDAPP
+teste.py
+/bin
+/build
+/dist
+*.spec
+*.txt
+*.csv
