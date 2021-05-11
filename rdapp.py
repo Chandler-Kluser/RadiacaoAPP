@@ -1,12 +1,14 @@
 import sys
+import conf
 from PyQt5 import QtWidgets
-import mainwindow
+from gui import mainwindow
 from numpy import savetxt
 from radiacaoapp import *
 
 def InitializeApplication():
     global cpl_list,showMessage
-    showMessage=False
+    # reading user options from the conf file
+    showMessage=conf.opts_def[conf.opts.index("showMessage")]
     # mark true when the nonlinear feature be working
     ui.cpl_nonlin_combobox.setEnabled(False)
     ui.cpl_nonlin_text.setEnabled(False)
@@ -258,6 +260,10 @@ qtRectangle = RadiacaoAPP.frameGeometry()
 centerPoint = QtWidgets.QDesktopWidget().availableGeometry().center()
 qtRectangle.moveCenter(centerPoint)
 RadiacaoAPP.move(qtRectangle.topLeft())
+
+# check config file
+conf.CheckConfFile()
+
 # show app
 RadiacaoAPP.show()
 

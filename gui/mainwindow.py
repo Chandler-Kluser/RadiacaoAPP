@@ -374,7 +374,7 @@ class Ui_RadiacaoAPP(object):
         self.solve_but.setText(_translate("RadiacaoAPP", "Solve!"))
         self.clear_all_but.setToolTip(_translate("RadiacaoAPP", "<html><head/><body><p>Clears all Entities Created</p></body></html>"))
         self.clear_all_but.setText(_translate("RadiacaoAPP", "Clear All"))
-import res_rc
+from res import res_rc
 
 
 if __name__ == "__main__":
