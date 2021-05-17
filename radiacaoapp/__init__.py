@@ -2,6 +2,7 @@ from numpy.linalg import solve as ls_solve
 from copy import copy, error
 from numpy import array,zeros
 from scipy.constants import sigma
+import re
 
 class radsurf:
     """Create a new Radiant Surface.
@@ -264,6 +265,11 @@ def mount():
 def SaveFile(filename):
     """
     Save all system information to a File
+
+    r - radsurf
+    v - view
+    c - coupling
+    l - load
     """
     # erases previous content
     open(filename,'w').close()
@@ -271,17 +277,70 @@ def SaveFile(filename):
     file = open(filename,'w')
     for i in radsurf.list:
         file.write("r,"+str(i.e)+","+str(i.A)+"\n")
+    for i in view.list:
+        file.write("v,"+str(i.num_radsurf_dep)+","+str(i.num_radsurf_arr)+","+str(i.F)+"\n")
+    for i in cpl.list:
+        file.write("c,"+str(i.num_radsurf_list)+","+str(i.q_gen)+","+str(i.non_lin)+","+str(i.non_lin_param)+","+str(i.Temp_guess)+"\n")
+    for i in load.list:
+        file.write("l,"+str(i.num_radsurf)+","+str(i.value)+","+str(i.load_type)+"\n")
     file.close()
 
 def ReadFile(filename,createsObjects=False):
     """
     Read all system information in a File
+
+    r - radsurf
+    v - view
+    c - coupling
+    l - load
     """
     file = open(filename,'r')
     lines = file.readlines()
     for i in lines:
         if i[0]=="r":
             print("oeeeee tem r\n")
+            if createsObjects:
+                try:
+                    # regex finding
+                    res = re.findall(r',(\d{0,}\.\d{1,})|,(\d{1,})', i)
+                    if res[0][0]=="":
+                        e = res[0][1]
+                    else:
+                        e = res[0][0]
+                    if res[1][0]=="":
+                        A = res[1][1]
+                    else:
+                        A = res[1][0]
+                    radsurf(float(e),float(A))
+                except Exception as msg:
+                    print(msg.args[0])
+        elif i[0]=="v":
+            print("oeeeee tem v\n")
+            # num_radsurf_dep,num_radsurf_arr,F
+            if createsObjects:
+                try:
+                    # regex finding
+                    res = re.findall(r',(\d{0,}\.\d{1,})|,(\d{1,})', i)
+                    if res[0][0]=="":
+                        num_radsurf_dep = res[0][1]
+                    else:
+                        num_radsurf_dep = res[0][0]
+                    if res[1][0]=="":
+                        num_radsurf_arr = res[1][1]
+                    else:
+                        num_radsurf_arr = res[1][0]
+                    if res[2][0]=="":
+                        F = res[2][1]
+                    else:
+                        F = res[2][0]
+                    view(int(num_radsurf_dep),int(num_radsurf_arr),float(F))
+                except Exception as msg:
+                    print(msg.args[0])
+        elif i[0]=="c":
+            print("oeeeee tem c\n")
+            # num_radsurf_list,q_gen=0,non_lin=0,non_lin_param=0,Temp_guess=[]
+        elif i[0]=="l":
+            print("oeeeee tem l\n")
         else:
             print("deu merdaaaaaa mmmm")
     file.close()
