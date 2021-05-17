@@ -1,5 +1,5 @@
 from numpy.linalg import solve as ls_solve
-from copy import copy
+from copy import copy, error
 from numpy import array,zeros
 from scipy.constants import sigma
 
@@ -13,6 +13,10 @@ class radsurf:
     total = 0
     list = []
     def __init__(self,e,A):
+        if (e>1 or e<=0):
+            raise ValueError("Invalid Emissivity")
+        if (A<0):
+            raise ValueError("Invalid Area")
         self.num=radsurf.total
         self.e=e
         self.A=A
@@ -66,6 +70,8 @@ class view:
     total = 0
     list = []
     def __init__(self,num_radsurf_dep,num_radsurf_arr,F):
+        if (F>1 or F<=0):
+            raise ValueError("Invalid View Factor")
         self.num = view.total
         self.dep=radsurf.get(num_radsurf_dep)
         self.arr=radsurf.get(num_radsurf_arr)
@@ -102,10 +108,27 @@ class cpl:
     """
     total = 0
     list = []
-    def __init__(self,num_radsurf_list,q_gen=0):
+    def __init__(self,num_radsurf_list,q_gen=0,non_lin=0,non_lin_param=0,Temp_guess=[]):
+        if (len(num_radsurf_list)<=1):
+            raise ValueError("Couplings must have at least two Radiant Surfaces")
+        if (not(non_lin==0 or non_lin==1 or non_lin==2)):
+            raise ValueError("Invalid Nonlinearity Coupling Option")
+        if (non_lin!=0):
+            if (non_lin_param<=0):
+                raise ValueError("Invalid Nonlinearity Parameter (Conduction or Convection)")
+            if (len(num_radsurf_list)>2):
+                raise ValueError("Nonlinear Couplings must have only two Radiant Surfaces")
+            if (len(Temp_guess!=2)):
+                raise ValueError("There must be only two Temperatures in Temperatures Guess List")
+            for i in Temp_guess:
+                if (i<=0):
+                    raise ValueError("Guess Temperatures must be greater than zero")
         self.num = cpl.total
         self.radsurf_list = radsurf.get(num_radsurf_list)
         self.q_gen = q_gen
+        self.non_lin = non_lin
+        self.non_lin_param = non_lin_param
+        self.Temp_guess = Temp_guess
         cpl.total=cpl.total+1
         cpl.list.append(self)
     @staticmethod
@@ -135,6 +158,10 @@ class load:
     total = 0
     list = []
     def __init__(self, num_radsurf,value,load_type=0):
+        if (not(load_type==0 or load_type==1 or load_type==2)):
+            raise ValueError("Incorrect Load Type")
+        if ((load_type==0 or load_type==2) and value<=0):
+            raise ValueError("Incorrect Load Value for this Type")
         self.num = load.total
         self.radsurf = radsurf.get(num_radsurf)
         self.type = load_type
@@ -153,7 +180,7 @@ class load:
         load.list = []
         load.total = 0
 
-def gettemp(x):
+def GetTemp(x):
     """
     Returns the temperature of a Radiant Surface given its Blackbody's Emissive Power
 
@@ -191,20 +218,33 @@ def mount():
                 A[1*n+i.num,j.arr.num] += view.K(j.num)
         A[1*n+i.num,2*n+i.num] = -1
     
-    # writing couplings
+    # writing couplings - third set of equations (part 1/2)
     eq_counter = 0
     for i in cpl.list:
         num_radsurfs_coupled = len(i.radsurf_list)
-        for j in range(0,num_radsurfs_coupled-1):
-            A[2*n+eq_counter,1*n+i.radsurf_list[j].num] = 1
-            A[2*n+eq_counter,1*n+i.radsurf_list[j+1].num] = -1 # em casos de proporcionalidades de poder emissivo colocar a constante de proporcionalidade aqui (upgrades futuros)
+
+        if (i.non_lin==0):      # Linear Coupling (2 or more Radiant Surfaces)
+            for j in range(0,num_radsurfs_coupled-1):
+                A[2*n+eq_counter,1*n+i.radsurf_list[j].num] = 1
+                A[2*n+eq_counter,1*n+i.radsurf_list[j+1].num] = -1 # in cases of proportional emissive powers in couplings, write code here to improve generality
+                eq_counter += 1
+        elif (i.non_lin==1):    # Conductive Coupling (2 Radiant Surfaces)
+            A[2*n+eq_counter,1*n+i.radsurf_list[0].num] = i.non_lin_param/(sigma*(i.Temp_guess[0]**3))      #   k / { sigma * T0^3 }
+            A[2*n+eq_counter,1*n+i.radsurf_list[1].num] = -i.non_lin_param/(sigma*(i.Temp_guess[1]**3))     # - k / { sigma * T1^3 }
+            A[2*n+eq_counter,2*n+i.radsurf_list[1].num] = -1                                                # - q1
             eq_counter += 1
-        for j in range(0,num_radsurfs_coupled):
+        elif (i.non_lin==2):    # Convective Coupling (2 Radiant Surfaces)
+            A[2*n+eq_counter,1*n+i.radsurf_list[0].num] = i.non_lin_param/(sigma*(i.Temp_guess[0]**3))      #   k / { sigma * T0^3 }
+            A[2*n+eq_counter,1*n+i.radsurf_list[1].num] = -i.non_lin_param/(sigma*(i.Temp_guess[1]**3))     # - k / { sigma * T1^3 }
+            A[2*n+eq_counter,2*n+i.radsurf_list[1].num] = -1                                                # - q1
+            eq_counter += 1
+
+        for j in range(0,num_radsurfs_coupled): # heat balance - the same for all 03 cases
             A[2*n+eq_counter,2*n+i.radsurf_list[j].num] = 1
         B[2*n+eq_counter] = i.q_gen
         eq_counter += 1
 
-    # writing loads
+    # writing loads - third set of equations (part 2/2)
     for i in load.list:
         # Temperature given
         if i.type==0:
@@ -220,6 +260,31 @@ def mount():
             B[2*n+eq_counter+i.num] = i.value
             
     return [A,B,n]
+
+def SaveFile(filename):
+    """
+    Save all system information to a File
+    """
+    # erases previous content
+    open(filename,'w').close()
+    # creates a new file from scratch
+    file = open(filename,'w')
+    for i in radsurf.list:
+        file.write("r,"+str(i.e)+","+str(i.A)+"\n")
+    file.close()
+
+def ReadFile(filename,createsObjects=False):
+    """
+    Read all system information in a File
+    """
+    file = open(filename,'r')
+    lines = file.readlines()
+    for i in lines:
+        if i[0]=="r":
+            print("oeeeee tem r\n")
+        else:
+            print("deu merdaaaaaa mmmm")
+    file.close()
 
 def solve():
     """Solves the Linear System (LS) with all Radiant Surfaces (RDs), view and couplings declared.
@@ -243,11 +308,19 @@ def solve():
     #     raise Exception("The Load quantity plus the number of Radiant Surfaces coupled is not equal to the number of Radiant Surfaces")
     
     # solution of the system and transformation from emissive power to temperature back again
+    if (A.shape[0]!=A.shape[1]):
+        raise ValueError("The number of Equations is not equal to the number of Variables.")
+
+    # # check whether there is a non linear coupling ...
+    # ok = True
+    # for i in cpl.list:
+    #     if (i.non_lin!=0 and ok):
+    #         ok = False
     try:
         X = ls_solve(A,B)
         X_temperatures = copy(X)
         for i in range(0,n):
-            X_temperatures[i+n] = gettemp(X[i+n])
+            X_temperatures[i+n] = GetTemp(X[i+n])
     except:
         X = array([])
         X_temperatures = array([])
